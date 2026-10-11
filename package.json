@@ -1,0 +1,49 @@
+{
+  "name": "reflow-ascii",
+  "version": "0.1.0",
+  "description": "Responsive ASCII diagrams, written in ClojureScript. Progressive enhancement with a static fallback.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./dist/reflow-ascii.js"
+    },
+    "./auto": "./src/auto.js",
+    "./style.css": "./src/style.css"
+  },
+  "bin": {
+    "reflow-ascii": "./bin/reflow-ascii.cjs"
+  },
+  "files": [
+    "dist",
+    "src",
+    "bin",
+    "deps.edn",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "shadow-cljs compile test && node target/tests.cjs",
+    "test:browser": "node test/browser.test.mjs",
+    "build": "shadow-cljs release lib generator cli && node scripts/build-demo.mjs",
+    "demo": "node scripts/serve.mjs",
+    "test:dom": "node test/dom.test.mjs"
+  },
+  "keywords": [
+    "ascii",
+    "diagram",
+    "responsive",
+    "progressive-enhancement",
+    "flowchart",
+    "clojurescript"
+  ],
+  "devDependencies": {
+    "happy-dom": "20.14.6",
+    "playwright": "1.62.1",
+    "shadow-cljs": "3.5.5"
+  }
+}

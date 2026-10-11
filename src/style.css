@@ -1,0 +1,29 @@
+/* Required baseline. Keep this CSS available even when JavaScript is disabled. */
+pre[data-ascii] {
+  box-sizing: border-box;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-align: left;
+  text-indent: 0;
+  direction: ltr;
+  writing-mode: horizontal-tb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-variant-ligatures: none;
+  font-kerning: none;
+  tab-size: 4;
+}
+
+pre[data-ascii] > code {
+  display: inline;
+  font: inherit;
+  letter-spacing: inherit;
+  white-space: inherit;
+  padding: 0;
+  border: 0;
+  background: none;
+}

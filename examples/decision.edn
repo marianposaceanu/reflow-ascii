@@ -1,0 +1,6 @@
+{:title "A small decision"
+ :nodes [{:id :ready :label "Is the build ready?"}
+         {:id :ship  :label "Ship it"}
+         {:id :fix   :label "Fix the failing checks"}]
+ :edges [{:from :ready :to :ship :label "yes"}
+         {:from :ready :to :fix  :label "no" :primary true}]}

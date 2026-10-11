@@ -1,0 +1,19 @@
+{
+  "title": "macOS swap exhaustion",
+  "root": "pressure",
+  "nodes": [
+    { "id": "pressure", "kind": "text", "label": "compressor near its limit, or no new swap file" },
+    { "id": "dominant", "label": "one process without a policy holds over 50% of compressed mem?" },
+    { "id": "kill", "label": "kill it" },
+    { "id": "policy", "label": "largest compressed process that has a policy, not yet acted on" },
+    { "id": "action", "label": "throttle, suspend or kill it" },
+    { "id": "dialog", "label": "out of application memory dialog" }
+  ],
+  "edges": [
+    { "from": "pressure", "to": "dominant" },
+    { "from": "dominant", "to": "kill", "label": "yes" },
+    { "from": "dominant", "to": "policy", "label": "no", "primary": true },
+    { "from": "policy", "to": "action" },
+    { "from": "action", "to": "dialog" }
+  ]
+}

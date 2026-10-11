@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why macOS pauses your apps when swap runs out</title>
+  <meta name="description" content="How the macOS kernel suspends the app with the most compressed memory when swap runs out, why ps still calls it sleeping, and how to resume paused apps when Force Quit does not help.">
+  <meta name="author" content="Marian Posaceanu">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://ark.marianposaceanu.com/macos-swap-exhaustion-paused-apps">
+  <meta property="og:type" content="article">
+  <meta property="og:url" content="https://ark.marianposaceanu.com/macos-swap-exhaustion-paused-apps">
+  <meta property="og:title" content="Why macOS pauses your apps when swap runs out">
+  <meta property="og:description" content="A beachballing terminal that used no CPU, a kernel flag that ps does not show, and the signal that brings paused apps back when Force Quit does not.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Why macOS pauses your apps when swap runs out">
+  <meta name="twitter:description" content="What the XNU kernel does when compressed memory has nowhere left to go, how to spot a paused app, and how to resume it from a shell.">
+  <meta property="og:image" content="https://ark.marianposaceanu.com/assets/social/macos-swap-exhaustion-paused-apps.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Abstract sine-wave social preview">
+  <meta name="twitter:image" content="https://ark.marianposaceanu.com/assets/social/macos-swap-exhaustion-paused-apps.png">
+  <meta name="twitter:image:alt" content="Abstract sine-wave social preview">
+  <link rel="preload" href="fonts/lora-v24-latin-ext_latin-regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/Fira_Sans_500.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="favicon.ico" sizes="any">
+  <link rel="stylesheet" href="assets/site.css?v=45a06c8dc8d3">
+  <script src="assets/site.js?v=a69d08a5060e" defer></script>
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      "headline": "Why macOS pauses your apps when swap runs out",
+      "description": "How the macOS kernel suspends the app with the most compressed memory when swap runs out, why ps still calls it sleeping, and how to resume paused apps when Force Quit does not help.",
+      "image": "https://ark.marianposaceanu.com/assets/articles/macos-swap-exhaustion-paused-apps/paused-window-full-memory.avif?v=d9d5f81f1bb2",
+      "datePublished": "2026-10-09",
+      "author": {
+        "@id": "https://marianposaceanu.com/#person",
+        "@type": "Person",
+        "name": "Marian Posăceanu",
+        "url": "https://marianposaceanu.com/home/about"
+      },
+      "publisher": {
+        "@id": "https://marianposaceanu.com/#person"
+      },
+      "isPartOf": {
+        "@id": "https://ark.marianposaceanu.com/#website"
+      },
+      "mainEntityOfPage": "https://ark.marianposaceanu.com/macos-swap-exhaustion-paused-apps",
+      "inLanguage": "en"
+    }
+  </script>
+<link rel="stylesheet" href="../src/style.css">
+<link rel="stylesheet" href="article.css">
+</head>
+<body class="site-article" id="top">
+<aside class="example-banner" aria-label="Local integration example">
+<p><strong>reflow-ascii integration example.</strong> The complete article with its first diagram enhanced. <a href="../index.html">Open the width playground</a> · <a href="https://ark.marianposaceanu.com/macos-swap-exhaustion-paused-apps">Original article</a></p>
+<button id="article-toggle" type="button" hidden>Show original ASCII</button><small id="article-status">Original ASCII is available without JavaScript.</small>
+</aside>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <nav class="main-navigation" aria-label="Main navigation">
+      <a class="nav-home" href="https://ark.marianposaceanu.com/">ark</a>
+      <a href="https://marianposaceanu.com/">marianposaceanu.com</a>
+    </nav>
+  </header>
+  <main class="page" id="main-content">
+    <header class="hero">
+      <p class="eyebrow">macOS · memory · XNU</p>
+      <h1>Why macOS pauses your apps when swap runs out</h1>
+      <p class="subtitle">A beachballing terminal that used no CPU, a kernel flag that <code>ps</code> does not show, and a signal that undoes a suspension it was never written for. What macOS does when compressed memory has nowhere left to go, and how to get the apps back.</p>
+      <ul class="meta" aria-label="Article metadata">
+        <li>Focus: macOS 27.0 (26A428), Ghostty 1.3.1, MacBook Air M4, 16 GB</li>
+        <li>Date: <time class="article-date" datetime="2026-09-30T17:30:00+03:00">30th September 2026</time></li>
+        <li>Language: English</li>
+        <li class="article-author">Author: <a rel="author" href="https://marianposaceanu.com/home/about">Marian Posăceanu</a></li>
+        <li class="publication-date">Published: <time datetime="2026-10-09">9th October 2026</time></li>
+      </ul>
+    </header>
+    <nav class="toc" aria-label="Table of contents">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#symptom">A terminal that would not wake up</a></li>
+        <li><a href="#mechanism">What the kernel does when swap runs out</a></li>
+        <li><a href="#sleeping">Why ps calls it sleeping</a></li>
+        <li><a href="#finding">Finding the paused apps</a></li>
+        <li><a href="#resume">Getting the apps back</a></li>
+        <li><a href="#again">Eight apps at once</a></li>
+        <li><a href="#avoiding">Keeping memory out of the red</a></li>
+        <li><a href="#sources">Sources</a></li>
+        <li><a href="#related-investigations">Related investigations</a></li>
+      </ol>
+    </nav>
+    <article class="article article-flow">
+      <figure class="figure">
+        <img data-schema-image="true" src="assets/articles/macos-swap-exhaustion-paused-apps/paused-window-full-memory.avif?v=d9d5f81f1bb2" width="1600" height="1000" loading="eager" decoding="async" fetchpriority="high" alt="A row of outlined app windows above a container packed full of small gray blocks, with the middle window filled red and sitting lower than the rest.">
+        <figcaption class="caption">When the compressor is full, the kernel stops the biggest window rather than the system.</figcaption>
+      </figure>
+      <p class="lede">Switching to the terminal brought up the beachball, and nothing happened after that. The process was alive, its threads looked idle, and <code>ps</code> said it was sleeping. It was not sleeping. The kernel had suspended it to stop the Mac from running out of memory, and then nothing had ever let it go.</p>
+      <div class="callout warning">
+        <p><strong>The short version</strong>When macOS runs out of room for compressed and swapped memory, the XNU kernel suspends the app holding the most compressed memory and puts up the "Your system has run out of application memory" dialog. The suspension is a Mach task hold, not <code>SIGSTOP</code>, so <code>ps</code> still shows the app as sleeping and the only trace is a kernel flag. Resume in the Force Quit window is the intended way back. When that does not stick, <code>kill -CONT</code> releases the hold, and one short pipeline resumes every paused app at once.</p>
+      </div>
+
+      <section id="symptom">
+        <h2>A terminal that would not wake up</h2>
+        <p>The terminal was Ghostty, open for about two weeks with sixteen tabs. It had been in the background for a while. Bringing it forward with <code>open -a Ghostty</code> made it the active app as far as LaunchServices was concerned, but the window never responded, and a second attempt failed outright with error <code>-1712</code>, an Apple Event timeout. AppleScript requests timed out the same way.</p>
+        <p>The first checks all said the process was fine:</p>
+        <ul>
+          <li><code>ps</code> listed it as <code>S</code>, sleeping, rather than <code>T</code>, stopped.</li>
+          <li>A two-second <code>sample</code> showed every thread parked in its normal wait. The main thread sat in the AppKit event loop waiting for the next event, and the renderer and I/O threads sat in <code>kevent64</code> and <code>poll</code>. No loop, no deadlock, no lock contention.</li>
+        </ul>
+        <p>Two other numbers did not fit a healthy app:</p>
+        <ul>
+          <li>Its CPU time did not change by a single hundredth of a second over eight seconds, including the seconds right after it was brought to the front. An app that receives events always does some work.</li>
+          <li>Its resident memory was about 2.5 MB, against a physical footprint of 878 MB and a peak of 1.3 GB. Almost all of it had been compressed or written to swap.</li>
+        </ul>
+        <p>A process that is idle, responsive and entirely paged out looks like that. So does a process that cannot run at all. The way to tell them apart turned out to be a signal.</p>
+      </section>
+
+      <section id="mechanism">
+        <h2>What the kernel does when swap runs out</h2>
+        <p>The cause is memory, not CPU. A busy machine usually means many large processes at once, and that is what drives memory into the compressor and then into swap, but the kernel only reacts to the memory side. macOS has no hard "out of memory" wall. It compresses memory that has not been touched recently, and when the compressor fills it writes compressed segments to swap files in <code>/System/Volumes/VM</code>. When the compressor is close to its limit, or the kernel cannot create another swap file, <code>memorystatus</code> runs what XNU calls the no paging space action. The function is short:</p>
+        <pre id="swap-diagram" data-ascii data-ascii-source="swap-model" tabindex="0" role="img" aria-label="macOS swap exhaustion compressor near its limit, or no new swap file. then one process without a policy holds over 50% of compressed mem?. one process without a policy holds over 50% of compressed mem?. yes: kill it; no: largest compressed process that has a policy, not yet acted on. kill it. largest compressed process that has a policy, not yet acted on. then throttle, suspend or kill it. throttle, suspend or kill it. then out of application memory dialog. out of application memory dialog."><code>compressor near its limit, or no new swap file
+                 |
+                 v
++-----------------------------------+  yes  +---------------------+
+| one process without a policy      |------>| kill it             |
+| holds over 50% of compressed mem? |       +---------------------+
++-----------------------------------+
+                 | no
+                 v
++-----------------------------------+       +---------------------+
+| largest compressed process that   |------>| throttle, suspend   |
+| has a policy, not yet acted on    |       | or kill it          |
++-----------------------------------+       +----------+----------+
+                                                       |
+                                                       v
+                                            +---------------------+
+                                            | out of application  |
+                                            | memory dialog       |
+                                            +---------------------+</code></pre>
+<script type="application/json" id="swap-model">{"title":"macOS swap exhaustion","root":"pressure","nodes":[{"id":"pressure","kind":"text","label":"compressor near its limit, or no new swap file"},{"id":"dominant","label":"one process without a policy holds over 50% of compressed mem?"},{"id":"kill","label":"kill it"},{"id":"policy","label":"largest compressed process that has a policy, not yet acted on"},{"id":"action","label":"throttle, suspend or kill it"},{"id":"dialog","label":"out of application memory dialog"}],"edges":[{"from":"pressure","to":"dominant"},{"from":"dominant","to":"kill","label":"yes"},{"from":"dominant","to":"policy","label":"no","primary":true},{"from":"policy","to":"action"},{"from":"action","to":"dialog"}]}</script>
+        <p>The policy is attached when a process is launched, through a <code>posix_spawn</code> attribute such as <code>POSIX_SPAWN_PCONTROL_SUSPEND</code>. On this Mac every ordinary app checked had the suspend policy: Safari, Terminal, Slack, Calendar, Ghostty. So did some helpers, including WebKit's networking and GPU processes and a wallpaper extension. Finder, the Dock and background daemons had none. The suspend branch in <code>proc_dopcontrol()</code> is short:</p>
+        <pre><code>case P_PCSUSP:
+    PROC_SETACTION_STATE(p);
+    proc_unlock(p);
+    memorystatus_log("memorystatus: suspending %s [%d] due to swap exhaustion\n", ...);
+    task_suspend(proc_task(p));
+    break;</code></pre>
+        <p>The kernel runs this at most once every five seconds, and each run acts on one process. Nothing in the kernel undoes it on its own. The only code that clears the paused state and releases the hold is <code>proc_resetpcontrol()</code>, which the kernel accepts only from root or from the system process that shows the out-of-memory dialog. Nothing resumes a paused app because memory has recovered. When the terminal was finally diagnosed, the system reported 74% of memory free, and it was still frozen.</p>
+        <p>A terminal with many long-lived tabs is close to the ideal victim. It is large, it spends most of its time in the background, and most of its memory, such as old scrollback, is rarely read, so it ends up compressed. "Largest compressed footprint" is exactly the rule the kernel uses to choose. Swap stood at 3.7 GB of 5 GB when this one was found.</p>
+      </section>
+
+      <section id="sleeping">
+        <h2>Why ps calls it sleeping</h2>
+        <p><code>task_suspend()</code> places a Mach-level hold on every thread in the task. It is not a signal, so the BSD half of the process never moves to the stopped state. <code>ps</code> prints <code>T</code> only for that stopped state, so it keeps printing <code>S</code>, and the per-thread view, <code>ps -M</code>, showed <code>S</code> for every thread as well. The threads stop wherever they happened to be, which for an idle app means inside its normal waits. That is why the sample looked perfectly healthy: it was a photograph of an idle app that had been frozen mid-idle.</p>
+        <p>The one place the state shows is a pair of flags in the process's BSD info, defined in <code>proc_info.h</code>:</p>
+        <ul>
+          <li><code>PROC_FLAG_PC_SUSP</code> (<code>0x400</code>): the process's policy is to be suspended when memory runs out.</li>
+          <li><code>PROC_FLAG_PA_SUSP</code> (<code>0x1000</code>): the process is currently suspended because memory ran out.</li>
+        </ul>
+        <p>Any user can read them for their own processes with <code>proc_pidinfo()</code>, no root needed. For the frozen terminal the answer was <code>policy=suspend PAUSED</code>, which settled the cause.</p>
+      </section>
+
+      <section id="finding">
+        <h2>Finding the paused apps</h2>
+        <p>A small Python script is enough to read the flags. It uses only the standard library:</p>
+        <pre><code>#!/usr/bin/env python3
+# usage: pflags.py &lt;pid&gt; [&lt;pid&gt; ...]
+import ctypes, sys
+
+libc = ctypes.CDLL("/usr/lib/libSystem.dylib")
+buf = ctypes.create_string_buffer(136)  # struct proc_bsdinfo
+policies = {0x000: "none", 0x200: "throttle", 0x400: "suspend", 0x600: "kill"}
+
+for pid in map(int, sys.argv[1:]):
+    if libc.proc_pidinfo(pid, 3, ctypes.c_uint64(0), buf, 136) &lt;= 0:  # PROC_PIDTBSDINFO
+        print(pid, "no access")
+        continue
+    flags = int.from_bytes(buf.raw[0:4], "little")
+    name = buf.raw[48:64].split(b"\0")[0].decode()
+    print(pid, name, "policy=" + policies[flags &amp; 0x600],
+          "PAUSED" if flags &amp; 0x1000 else "running")</code></pre>
+        <pre><code>$ python3 pflags.py $(pgrep -x ghostty) $(pgrep -x Safari)
+60309 ghostty policy=suspend PAUSED
+63778 Safari policy=suspend running</code></pre>
+        <p>Without the script, CPU time is a good hint. An app that shows the beachball and whose <code>ps -o time= -p &lt;pid&gt;</code> does not move at all over several seconds is probably suspended rather than busy. A busy app burns CPU. A suspended one cannot.</p>
+      </section>
+
+      <section id="resume">
+        <h2>Getting the apps back</h2>
+        <p>The intended route is the Force Quit window, <kbd>⌥</kbd><kbd>⌘</kbd><kbd>⎋</kbd>, where paused apps are listed and can be resumed. Resume calls <code>proc_resetpcontrol()</code>, which clears the flag and releases the hold. This time it did not bring the terminal back. What did was a plain signal:</p>
+        <pre><code>kill -CONT $(pgrep -x ghostty)</code></pre>
+        <p>The terminal had never been sent <code>SIGSTOP</code>, so it is not obvious that <code>SIGCONT</code> should do anything. It works because of how XNU handles the signal. The <code>SIGCONT</code> case in <code>kern_sig.c</code> calls <code>task_resume_internal()</code> unconditionally, and that releases one hold on the task whatever placed it, including the kernel's own <code>task_suspend()</code>:</p>
+        <pre><code>case SIGCONT:
+    ...
+    (void) task_resume_internal(sig_task);</code></pre>
+        <p>The effect was immediate. CPU time started moving within four seconds, resident memory went from 2.5 MB to 106 MB and then 160 MB as the app read its pages back from swap, and the next <code>open -a Ghostty</code> worked. The first seconds are sluggish while that happens. On a process that is not suspended the signal does nothing, because there is no hold to release.</p>
+        <p>There is one side effect. <code>SIGCONT</code> releases the hold but leaves the <code>PA_SUSP</code> flag set, because only <code>proc_resetpcontrol()</code> clears it. A flagged process is skipped in later passes, since the kernel only picks processes it has not acted on yet. So clicking Resume in Force Quit afterwards is still worthwhile. It clears the flag, and the extra resume it performs is harmless.</p>
+      </section>
+
+      <section id="again">
+        <h2>Eight apps at once</h2>
+        <p>Nine days later the same Mac had beachballs in several apps at the same time. The flag check found eight paused processes: Slack, Calendar, Notes, Postman, the same Ghostty process again, WebKit's networking and GPU processes, and the wallpaper extension. None of them used any CPU over six seconds. Swap was at 4.5 GB of 6 GB.</p>
+        <p>Eight is not surprising. The kernel pauses one process per pass and can run a pass every five seconds, so a minute of shortage is enough to work down a row of apps. Resuming them one by one is tedious, so this resumes every process of yours that carries the flag:</p>
+        <pre><code>python3 pflags.py $(pgrep -U "$USER") | awk '/PAUSED/ {print $1}' | xargs kill -CONT</code></pre>
+        <p>Within eight seconds seven of the eight were using CPU again. The wallpaper extension simply had nothing to do and showed CPU use later. One zsh detail cost a retry: with the PIDs in a scalar variable, <code>kill -CONT $pids</code> fails with "illegal pid", because zsh does not split unquoted parameters into words the way bash does. An array or <code>xargs</code> avoids it.</p>
+        <p>The flags also explain why Resume had seemed useless the first time. After the first episode the terminal still carried <code>PA_SUSP</code>, and a flagged process is never picked again. To be paused a second time, its flag must have been cleared in between, and the only code that clears it on a running process is <code>proc_resetpcontrol()</code>, which is what Resume calls. Later the same day Slack, Ghostty and Calendar showed clear flags too, while Postman, Notes and the helpers still read <code>PAUSED</code> even though they were running normally. That is consistent with Resume working all along: when memory is still short, the kernel simply picks the biggest remaining app a few seconds later, and very often that is the app that was just resumed. Resuming only lasts once something has freed memory.</p>
+        <p>It also means a <code>PAUSED</code> line is not proof of a frozen app. After a <code>SIGCONT</code> the flag stays behind on a process that is running normally. The CPU-time check is what tells the two apart.</p>
+      </section>
+
+      <section id="avoiding">
+        <h2>Keeping memory out of the red</h2>
+        <p>None of this is a malfunction. It is the kernel choosing to freeze one large app rather than let the whole machine stall, and on a 16 GB Mac with long-lived apps it will happen again. A few habits make it rarer:</p>
+        <ul>
+          <li>Watch Memory Pressure in Activity Monitor. Yellow or red means the compressor is doing heavy work, and that is the time to close something, not when the dialog appears.</li>
+          <li>Restart apps with large, long-lived footprints now and then. A terminal with many tabs open for weeks, or a browser, holds far more than it seems.</li>
+          <li>Look for forgotten background work: old terminal sessions, dev servers, test runs. Each one holds memory while it is idle.</li>
+          <li>In Ghostty, <code>scrollback-limit</code> caps each terminal's scrollback in bytes, 10 MB by default. Scrollback lives entirely in memory, so many tabs with long output add up.</li>
+          <li>Keep free disk space for swap. Here the disk had plenty, so the compressor limit was the likelier trigger, but a full disk brings the same dialog sooner.</li>
+        </ul>
+        <p>And when an app beachballs while using no CPU at all, check the flag before force quitting it. A paused app is not hung, and <code>kill -CONT</code> gets it back with every tab intact.</p>
+      </section>
+
+      <section id="sources" class="sources">
+        <h2>Sources</h2>
+        <ol class="source-list">
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_proc.c">Apple, XNU source: bsd/kern/kern_proc.c (no_paging_space_action, proc_dopcontrol, proc_resetpcontrol)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_memorystatus.c">Apple, XNU source: bsd/kern/kern_memorystatus.c (no paging space throttle and out-of-memory notification)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c">Apple, XNU source: bsd/kern/kern_sig.c (SIGCONT handling)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/kern/task.c">Apple, XNU source: osfmk/kern/task.c (task_suspend and task holds)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_exec.c">Apple, XNU source: bsd/kern/kern_exec.c (POSIX_SPAWN_PCONTROL attributes)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/proc_info.h">Apple, XNU source: bsd/sys/proc_info.h (PROC_FLAG_PC_SUSP and PROC_FLAG_PA_SUSP)</a></li>
+          <li><a href="https://github.com/apple-oss-distributions/adv_cmds/blob/main/ps/print.c">Apple, adv_cmds source: ps/print.c (process state letters)</a></li>
+          <li><a href="https://support.apple.com/guide/activity-monitor/check-if-your-mac-needs-more-ram-actmntr34865/mac">Apple, Check if your Mac needs more RAM in Activity Monitor</a></li>
+          <li><a href="https://ghostty.org/docs/config/reference#scrollback-limit">Ghostty, configuration reference: scrollback-limit</a></li>
+        </ol>
+      </section>
+
+      <section id="related-investigations" class="related-investigations">
+        <h2>Related investigations</h2>
+        <ul class="related-list">
+          <li><a href="https://ark.marianposaceanu.com/ghostty-macos-27-spotlight-title-loop">Ghostty, agent spinners, and the Spotlight loop on macOS 27</a></li>
+          <li><a href="https://ark.marianposaceanu.com/macos-tahoe-performance-guide">Making macOS Tahoe faster, without snake oil</a></li>
+          <li><a href="https://ark.marianposaceanu.com/apple-ssd-pseudo-slc-apfs-swap">The 92 GiB cliff inside an Apple SSD</a></li>
+          <li><a href="https://ark.marianposaceanu.com/zswap-small-linux-server">Zswap or zram on a small Linux server? A live audit</a></li>
+        </ul>
+      </section>
+    </article>
+  </main>
+  <footer class="page-footer">
+    <p>Research notes by <a rel="author" href="https://marianposaceanu.com/home/about">Marian Posaceanu</a>. Read critically, verify current details, and see the <a href="https://ark.marianposaceanu.com/disclaimer">publishing disclaimer</a>.</p>
+    <p><a href="https://ark.marianposaceanu.com/">All investigations</a> · <a href="https://ark.marianposaceanu.com/disclaimer">Disclaimer</a></p>
+  </footer>
+<script type="module" src="article.js"></script>
+</body>
+</html>

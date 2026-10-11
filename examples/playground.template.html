@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>reflow-ascii — diagrams that fit</title>
+  <link rel="stylesheet" href="src/style.css">
+  <link rel="stylesheet" href="examples/playground.css">
+</head>
+<body>
+  <main>
+    <header class="masthead"><a class="wordmark" href="./"><span aria-hidden="true">+</span> reflow-ascii</a><span>CLOJURESCRIPT / 0.1.0</span></header>
+    <section class="intro">
+      <div><p class="eyebrow">PLAIN TEXT. ROOM TO MOVE.</p><h1>ASCII that finds<br>its shape.</h1></div>
+      <div class="lede"><p>A wide flowchart on a laptop.<br>A readable path on your phone.</p><p class="secondary">Same words. Same connections. Boxes and arrows redrawn for the space they have.</p><a class="article-link" href="examples/article.html#swap-diagram">Try it inside the original article <span aria-hidden="true">↗</span></a></div>
+    </section>
+    <section class="authoring" aria-labelledby="editor-title">
+      <div class="editor-heading"><h2 id="editor-title">01 / AUTHOR THE GRAPH</h2><label for="example">Start from</label><select id="example" data-js-control disabled><option value="article">macOS article</option><option value="decision">Decision</option><option value="join">Shared destination</option><option value="loop">Retry loop</option></select></div>
+      <details id="editor"><summary>Edit nodes and connections <span>EDN</span></summary><div class="editor-body"><label class="editor-label" for="graph-source">Diagram model</label><textarea id="graph-source" rows="19" spellcheck="false" data-js-control disabled aria-describedby="editor-help"></textarea><p id="editor-help">Give each node an ID and label. Connect IDs with edges; add a label for each branch. Input order determines branch order.</p><p id="editor-error" role="alert" hidden></p><button id="render-graph" type="button" data-js-control disabled>Render diagram</button></div></details>
+      <div class="export-bar"><span>Export the current diagram</span><button type="button" data-export="ascii" data-js-control disabled>ASCII</button><button type="button" data-export="edn" data-js-control disabled>EDN</button><button type="button" data-export="json" data-js-control disabled>JSON</button><button type="button" data-export="html" data-js-control disabled>HTML</button><small>HTML includes the model, fallback, and responsive library.</small></div>
+    </section>
+    <section class="workbench" aria-labelledby="workbench-title">
+      <div class="toolbar"><h2 id="workbench-title">02 / PREVIEW EVERY WIDTH</h2><div class="presets"><button data-width="360" type="button" data-js-control disabled>Phone</button><button data-width="620" type="button" data-js-control disabled>Tablet</button><button data-width="1000" type="button" aria-pressed="true" data-js-control disabled>Wide</button></div><button id="toggle" type="button" data-js-control disabled>Responsive: on</button></div>
+      <div class="width-control"><label for="width">Container width</label><input id="width" type="range" min="280" max="1000" value="1000" data-js-control disabled><output id="width-value" for="width">1000 px</output></div>
+      <div class="stage"><div id="diagram-frame" style="width:1000px;max-width:100%">{{DIAGRAM}}</div></div>
+      <div class="status"><span id="layout-status" aria-live="polite">Static fallback · JavaScript has not run</span><span>Selectable, copyable text</span></div>
+      <noscript><p class="notice">JavaScript is off. The original diagram is still here; scroll horizontally to read it.</p></noscript>
+    </section>
+    <section class="notes"><div><span>01</span><h3>Author the meaning</h3><p>Nodes and edges live in a small Clojure map. Both renderers use the same model.</p></div><div><span>02</span><h3>Ship real text</h3><p>Generate the initial <code>&lt;pre&gt;</code> at build time. Readers get a diagram even without JavaScript.</p></div><div><span>03</span><h3>Let the space decide</h3><p>The browser measures character width, wraps labels, and chooses a layout that fits.</p></div></section>
+    <footer><span>Pure data → pure layout → plain text.</span><a href="README.md">Read the integration guide ↗</a></footer>
+  </main>
+  <script type="application/octet-stream" id="runtime-source">{{RUNTIME}}</script>
+  <script type="module" src="examples/generated/generator.js"></script>
+</body>
+</html>

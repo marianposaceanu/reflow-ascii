@@ -1,0 +1,25 @@
+{:source-paths ["src" "test"]
+ :maven {:local-repo ".cache/m2"}
+ :builds
+ {:lib {:target :esm
+        :output-dir "dist"
+        :runtime :custom
+        :compiler-options {:output-feature-set :es2020}
+        :modules {:reflow-ascii
+                  {:exports {renderDiagram reflow-ascii.api/render-diagram
+                             layoutDiagram reflow-ascii.api/layout-diagram
+                             describeDiagram reflow-ascii.api/describe-diagram
+                             renderMarkup reflow-ascii.api/render-markup
+                             enhance reflow-ascii.api/enhance
+                             enhanceAll reflow-ascii.api/enhance-all}}}}
+  :generator {:target :esm
+              :output-dir "examples/generated"
+              :runtime :custom
+              :compiler-options {:output-feature-set :es2020}
+              :modules {:generator {:init-fn reflow-ascii.generator/init!}}}
+  :cli {:target :node-script
+        :main reflow-ascii.cli/main
+        :output-to "bin/reflow-ascii.cjs"}
+  :test {:target :node-test
+         :output-to "target/tests.cjs"
+         :ns-regexp "-test$"}}}
