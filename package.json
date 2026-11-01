@@ -42,7 +42,7 @@
     "clojurescript"
   ],
   "devDependencies": {
-    "happy-dom": "20.14.6",
+    "happy-dom": "21.0.4",
     "playwright": "1.62.1",
     "shadow-cljs": "3.5.5"
   }
